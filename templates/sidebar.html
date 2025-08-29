@@ -39,7 +39,7 @@
                     <i class="fas fa-network-wired"></i>
                     <span class="sidebar-text">IP Reputation</span>
                 </a>
-            </li>
+            </li> {% endcomment %}
 
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'ops.jsonschema_dashboard' %}active{% endif %}" 
@@ -47,7 +47,7 @@
                     <i class="fas fa-database"></i>
                     <span class="sidebar-text">JSON Schema</span>
                 </a>
-            </li> {% endcomment %}
+            </li>
 
             {% comment %} <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'ops_requests' %}active{% endif %}" 
@@ -105,7 +105,7 @@
         <div class="text-center">
             <small class="text-white-50">
                 <span class="real-time-indicator"></span>
-                <span class="sidebar-monitoring">IP/API Advance Protection </span>
+                <span class="sidebar-monitoring">IP/API GUARD Protection </span>
             </small>
         </div>
     </div>

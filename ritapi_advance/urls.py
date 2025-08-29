@@ -31,6 +31,8 @@ urlpatterns = [
     
     path('admin/', admin.site.urls),
     
+    # License Management will be handled by ops.urls
+    
     # TLS Analyzer endpoints
     path("tls/", include("tls_analyzer.urls")),
     

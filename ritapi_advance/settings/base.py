@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "ops.ops_alert_blocking",
     "ops.ops_asn_score",
     "ops.ops_services",
+    "ops.ops_license_manager",
 ]
 
 REST_FRAMEWORK = {
@@ -72,7 +73,7 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
-    "decision_engine.middleware.DecisionProxyMiddleware",
+    "ops.ops_license_manager.middleware.LicenseCheckMiddleware",  # Re-enable with fixes
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -80,6 +81,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "decision_engine.middleware.DecisionProxyMiddleware",
 ]
 
 ROOT_URLCONF = "ritapi_advance.urls"
@@ -198,4 +200,17 @@ ENABLE_BACKEND_CACHE = False
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 # TTL (seconds) untuk cache response backend
 BACKEND_RESPONSE_CACHE_TTL = int(os.getenv("BACKEND_RESPONSE_CACHE_TTL", "30"))
+
+# === License Management Settings ===
+# License API configuration
+LICENSE_API_KEY = os.getenv("LICENSE_API_KEY", "ritapi-client-key-2025")
+
+# License check configuration
+SKIP_LICENSE_CHECK = os.getenv("SKIP_LICENSE_CHECK", "False") == "True"
+LICENSE_CHECK_FAIL_OPEN = os.getenv("LICENSE_CHECK_FAIL_OPEN", "True") == "True"
+
+# License API URLs (will try in order)
+LICENSE_API_URLS = [
+    "https://uat.ritapi.io/api/license"
+]
 

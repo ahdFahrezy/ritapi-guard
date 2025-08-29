@@ -1,0 +1,434 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}License Activation - RITAPI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .license-container {
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 30px;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .license-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .license-header h1 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+    
+    .license-header p {
+        color: #7f8c8d;
+        margin: 0;
+    }
+    
+    .license-form .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .license-form label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #34495e;
+    }
+    
+    .license-form input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #ecf0f1;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: 'Courier New', monospace;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        transition: border-color 0.3s;
+    }
+    
+    .license-form input[type="text"]:focus {
+        outline: none;
+        border-color: #3498db;
+    }
+    
+    .license-form .btn-activate {
+        width: 100%;
+        padding: 15px;
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .license-form .btn-activate:hover {
+        background: linear-gradient(45deg, #2980b9, #3498db);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    }
+    
+    .license-form .btn-activate:disabled {
+        background: #bdc3c7;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .license-status {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .license-status.active {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .license-status.inactive {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .serial-examples {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 15px;
+    }
+    
+    .serial-examples h4 {
+        margin: 0 0 10px 0;
+        color: #495057;
+        font-size: 14px;
+    }
+    
+    .serial-examples .example-serials {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+    }
+    
+    .serial-examples .example-serial {
+        background: #e9ecef;
+        padding: 8px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .serial-examples .example-serial:hover {
+        background: #dee2e6;
+    }
+    
+    .current-license-info {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .current-license-info h4 {
+        margin: 0 0 10px 0;
+        color: #1976d2;
+    }
+    
+    .current-license-info .license-details {
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+    }
+    
+    .messages {
+        margin-bottom: 20px;
+    }
+    
+    .messages .alert {
+        padding: 12px 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .messages .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .messages .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .messages .alert-warning {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="license-container">
+    <div class="license-header">
+        <h1>🔐 License Activation</h1>
+        <p>Please enter your license serial number to activate RITAPI system</p>
+    </div>
+    
+    <!-- Messages -->
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    <!-- Current License Status -->
+    {% if is_licensed and current_license %}
+        <div class="current-license-info">
+            <h4>✅ System Currently Licensed</h4>
+            <div class="license-details">
+                <strong>Serial Number:</strong> {{ current_license.serial_number }}<br>
+                <strong>Activated:</strong> {{ current_license.activated_time|date:"M d, Y H:i" }}<br>
+                <strong>Status:</strong> Active
+            </div>
+        </div>
+    {% else %}
+        <div class="license-status inactive">
+            <strong>⚠️ System Not Licensed</strong><br>
+            Please activate your license to use RITAPI system.
+        </div>
+    {% endif %}
+    
+    <!-- Activation Form -->
+    <form method="post" class="license-form" id="activationForm">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="serial_number">License Serial Number:</label>
+            <input 
+                type="text" 
+                id="serial_number" 
+                name="serial_number" 
+                placeholder="XXXX-XXXX-XXXX-XXXX"
+                pattern="[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}"
+                maxlength="19"
+                required
+            >
+            <small style="color: #6c757d; font-size: 12px;">
+                Format: XXXX-XXXX-XXXX-XXXX (letters and numbers only)
+            </small>
+        </div>
+        
+        <button type="submit" class="btn-activate" id="activateBtn">
+            🚀 Activate License
+        </button>
+    </form>
+    
+    <!-- Example Serial Numbers (for testing) -->
+    {% if debug %}
+        <div class="serial-examples">
+            <h4>Example Serial Numbers (Development Mode):</h4>
+            <div class="example-serials">
+                <div class="example-serial" onclick="fillSerial('JCYH-8NHA-LN41-ZQ1U')">JCYH-8NHA-LN41-ZQ1U</div>
+                <div class="example-serial" onclick="fillSerial('47AR-FNXK-I157-EF09')">47AR-FNXK-I157-EF09</div>
+                <div class="example-serial" onclick="fillSerial('3MUY-F7DR-9WFJ-J70T')">3MUY-F7DR-9WFJ-J70T</div>
+                <div class="example-serial" onclick="fillSerial('1XTZ-2N7I-06W2-KWNQ')">1XTZ-2N7I-06W2-KWNQ</div>
+                <div class="example-serial" onclick="fillSerial('TV96-2FT3-3JDC-1V3A')">TV96-2FT3-3JDC-1V3A</div>
+                <div class="example-serial" onclick="fillSerial('2PHJ-NJVE-VE6K-M3WN')">2PHJ-NJVE-VE6K-M3WN</div>
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Links -->
+    <div style="text-align: center; margin-top: 30px;">
+        <a href="/ops/license/status/" style="color: #3498db; text-decoration: none;">
+            📊 View License Status
+        </a>
+        {% if is_licensed %}
+            <span style="margin: 0 15px; color: #bdc3c7;">|</span>
+            <a href="/ops/" style="color: #27ae60; text-decoration: none;">
+                🏠 Continue to Dashboard
+            </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Auto-format serial number input
+    $('#serial_number').on('input', function() {
+        let value = $(this).val().replace(/[^A-Z0-9]/g, '').toUpperCase();
+        let formatted = '';
+        
+        for (let i = 0; i < value.length && i < 16; i++) {
+            if (i > 0 && i % 4 === 0) {
+                formatted += '-';
+            }
+            formatted += value[i];
+        }
+        
+        $(this).val(formatted);
+    });
+    
+    // AJAX Form submission
+    $('#activationForm').on('submit', function(e) {
+        e.preventDefault(); // Prevent default form submission
+        
+        const $form = $(this);
+        const $btn = $('#activateBtn');
+        const $serialInput = $('#serial_number');
+        const serialNumber = $serialInput.val().trim();
+        
+        // Validation
+        if (!serialNumber) {
+            showMessage('Please enter a valid serial number.', 'error');
+            return;
+        }
+        
+        // Validate format
+        const serialPattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+        if (!serialPattern.test(serialNumber)) {
+            showMessage('Invalid serial number format. Please use format: XXXX-XXXX-XXXX-XXXX', 'error');
+            return;
+        }
+        
+        // Update button state
+        $btn.prop('disabled', true).html('⏳ Activating...');
+        
+        // AJAX request
+        $.ajax({
+            url: '/ops/license/api/activate/',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                'serial_number': serialNumber
+            }),
+            headers: {
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    showMessage('License activated successfully! Redirecting...', 'success');
+                    
+                    // Update UI to show activated state
+                    updateUIToActivated(response.data);
+                    
+                    // Redirect after 2 seconds
+                    setTimeout(function() {
+                        window.location.href = '/ops/';
+                    }, 2000);
+                } else {
+                    showMessage(response.message || 'Activation failed', 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                let errorMessage = 'Activation failed. Please try again.';
+                
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                } else if (xhr.status === 0) {
+                    errorMessage = 'Network error. Please check your connection.';
+                } else if (xhr.status >= 500) {
+                    errorMessage = 'Server error. Please try again later.';
+                }
+                
+                showMessage(errorMessage, 'error');
+                console.error('Activation error:', xhr.responseText);
+            },
+            complete: function() {
+                // Reset button state after 2 seconds
+                setTimeout(function() {
+                    $btn.prop('disabled', false).html('🚀 Activate License');
+                }, 2000);
+            }
+        });
+    });
+    
+    // Function to show messages
+    function showMessage(message, type) {
+        // Remove existing messages
+        $('.alert').remove();
+        
+        // Create new message
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+        const alertHtml = `
+            <div class="alert ${alertClass}" style="margin-bottom: 20px;">
+                ${message}
+            </div>
+        `;
+        
+        // Insert message before the form
+        $('.license-form').before(alertHtml);
+        
+        // Auto remove after 5 seconds for success messages
+        if (type === 'success') {
+            setTimeout(function() {
+                $('.alert').fadeOut();
+            }, 5000);
+        }
+    }
+    
+    // Function to update UI to activated state
+    function updateUIToActivated(licenseData) {
+        // Update license status section
+        $('.license-status.inactive').removeClass('inactive').addClass('active')
+            .html('<strong>✅ System Licensed</strong><br>License activated successfully!');
+        
+        // Add current license info
+        if (licenseData) {
+            const licenseInfoHtml = `
+                <div class="current-license-info">
+                    <h4>✅ System Currently Licensed</h4>
+                    <div class="license-details">
+                        <strong>Serial Number:</strong> ${licenseData.serial_number}<br>
+                        <strong>Activated:</strong> Just now<br>
+                        <strong>Status:</strong> Active
+                    </div>
+                </div>
+            `;
+            $('.license-status').after(licenseInfoHtml);
+        }
+        
+        // Update links section
+        $('.license-container').append(`
+            <div style="text-align: center; margin-top: 30px;">
+                <a href="/ops/" style="color: #27ae60; text-decoration: none; font-weight: bold;">
+                    🏠 Continue to Dashboard
+                </a>
+            </div>
+        `);
+    }
+    
+    // Function to fill serial number (for development)
+    window.fillSerial = function(serial) {
+        $('#serial_number').val(serial);
+    };
+    
+    // Auto-focus on serial number input
+    {% if not is_licensed %}
+        $('#serial_number').focus();
+    {% endif %}
+});
+</script>
+{% endblock %}
