@@ -1,7 +1,7 @@
-# RITAPI Advance - WAF System
+# RITAPI GUARD - WAF System
 
 ## Overview
-RITAPI Advance is a Web Application Firewall (WAF) system that provides security checks and intelligent routing to multiple backend services.
+RITAPI GUARD is a Web Application Firewall (WAF) system that provides security checks and intelligent routing to multiple backend services.
 
 ## Key Features
 
