@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Blocked IP Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <!-- Header + Search Form -->
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title">
+                        <i class="fas fa-ban"></i>
+                        Blocked IP Management
+                    </h3>
+                    <div class="card-tools">
+                        <form method="get" action="" class="d-inline">
+                            <div class="input-group input-group-sm" style="width: 500px;">
+                                <!-- Search -->
+                                <input type="text" name="q" class="form-control" placeholder="Search IP..." value="{{ query }}">
+
+                                <!-- Severity filter -->
+                                <select name="severity" class="form-select">
+                                    <option value="">All Severities</option>
+                                    <option value="critical" {% if severity_filter == "critical" %}selected{% endif %}>Critical</option>
+                                    <option value="high" {% if severity_filter == "high" %}selected{% endif %}>High</option>
+                                    <option value="medium" {% if severity_filter == "medium" %}selected{% endif %}>Medium</option>
+                                    <option value="low" {% if severity_filter == "low" %}selected{% endif %}>Low</option>
+                                </select>
+
+                                <!-- Status filter -->
+                                <select name="status" class="form-select">
+                                    <option value="">All Status</option>
+                                    <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+                                    <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+                                </select>
+
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search"></i> Filter
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card-body">
+
+                    <!-- ⚠️ Warning jika kosong -->
+                    {% if error_message %}
+                    <div class="card mt-3 border-warning">
+                        <div class="card-body text-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            {{ error_message }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 📜 Tabel Blocked IP -->
+                    <div class="table-responsive mt-2">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>Reason</th>
+                                    <th>Severity</th>
+                                    <th>Blocked At</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for b in blocked_ips %}
+                                <tr>
+                                    <td><code>{{ b.ip_address }}</code></td>
+                                    <td>{{ b.reason|truncatechars:50 }}</td>
+                                    <td>
+                                        {% if b.severity == "critical" %}
+                                            <span class="badge bg-danger">{{ b.severity|title }}</span>
+                                        {% elif b.severity == "high" %}
+                                            <span class="badge bg-warning text-dark">{{ b.severity|title }}</span>
+                                        {% elif b.severity == "medium" %}
+                                            <span class="badge bg-info text-dark">{{ b.severity|title }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success">{{ b.severity|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted">{{ b.blocked_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        {% if b.active %}
+                                            <span class="badge bg-danger">Blocked</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Soft Block</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if b.active %}
+                                            <a href="{% url 'ops_unblock_ip' b.ip_address %}" class="btn btn-sm btn-success">Unblock</a>
+                                        {% else %}
+                                            <a href="{% url 'ops_block_ip_manual' b.ip_address %}" class="btn btn-sm btn-danger">Block</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-ban fa-3x mb-3"></i>
+                                        <h5>No blocked IPs</h5>
+                                        <p>Currently no IP addresses are blocked.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if blocked_ips and blocked_ips.has_other_pages %}
+                    <nav aria-label="Blocked IP pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if blocked_ips.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ blocked_ips.previous_page_number }}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            {% endif %}
+
+                            {% for num in blocked_ips.paginator.page_range %}
+                                {% if blocked_ips.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > blocked_ips.number|add:'-3' and num < blocked_ips.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if blocked_ips.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ blocked_ips.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ blocked_ips.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

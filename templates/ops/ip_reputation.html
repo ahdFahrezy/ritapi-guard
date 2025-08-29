@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}IP Reputation{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <!-- Header + Search Form -->
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-network-wired"></i>
+                        IP Reputation Dashboard
+                    </h3>
+                    <div class="card-tools">
+                        <form method="post" action="{% url 'ops_ip_reputation_check' %}" class="d-inline">
+                            {% csrf_token %}
+                            <div class="input-group input-group-sm" style="width: 300px;">
+                                <input type="text" name="ip_address" class="form-control" placeholder="Enter IP address..." required>
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-search"></i> Check
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card-body">
+
+                    <!-- ⚠️ Warning Card -->
+                    {% if error_message %}
+                    <div class="card mt-3 border-warning">
+                        <div class="card-body text-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            {{ error_message }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- ✅ Result -->
+                    {% if result %}
+                    <div class="alert alert-info mb-4">
+                        <h5 class="mb-3"><i class="fas fa-info-circle"></i> Reputation Check Result</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p><strong>IP:</strong> <code>{{ result.ip_address }}</code></p>
+                                <p><strong>ISP:</strong> {{ result.isp }}</p>
+                                <p><strong>Country:</strong> {{ result.country }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Reputation Score:</strong> 
+                                    <span class="
+                                        {% if result.reputation_score < 0 %}text-danger
+                                        {% elif result.reputation_score > 0 %}text-success
+                                        {% else %}text-warning{% endif %}
+                                    ">
+                                        {{ result.reputation_score }}
+                                    </span>
+                                </p>
+                                <p><strong>TOR Node:</strong>
+                                    {% if result.is_tor %}
+                                        <span class="badge bg-danger">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-success">No</span>
+                                    {% endif %}
+                                </p>
+                                <p><strong>Checked At:</strong> {{ result.timestamp|date:"M d, Y H:i" }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Sources:</strong>
+                                    {% if result.scores.sources %}
+                                        <span class="text-muted small">{{ result.scores.sources|join:", " }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 📜 History Table -->
+                    <div class="table-responsive mt-2">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>ISP</th>
+                                    <th>Country</th>
+                                    <th>Score</th>
+                                    <th>TOR?</th>
+                                    <th>Sources</th>
+                                    <th>Checked At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in history %}
+                                <tr>
+                                    <td><code>{{ r.ip_address }}</code></td>
+                                    <td>{{ r.isp }}</td>
+                                    <td>{{ r.country }}</td>
+                                    <td>
+                                        {% if r.reputation_score < 0 %}
+                                            <span class="badge bg-danger">{{ r.reputation_score }}</span>
+                                        {% elif r.reputation_score > 0 %}
+                                            <span class="badge bg-success">{{ r.reputation_score }}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.is_tor %}
+                                            <span class="badge bg-danger">Yes</span>
+                                        {% else %}
+                                            <span class="badge bg-success">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.scores.sources %}
+                                            <span class="text-muted small">{{ r.scores.sources|join:", " }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted">{{ r.timestamp|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                                        <h5>No IP reputation checks yet</h5>
+                                        <p>Run your first IP reputation check to see history here.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if history and history.has_other_pages %}
+                    <nav aria-label="IP reputation pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if history.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ history.previous_page_number }}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            {% endif %}
+
+                            {% for num in history.paginator.page_range %}
+                                {% if history.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > history.number|add:'-3' and num < history.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if history.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ history.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ history.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

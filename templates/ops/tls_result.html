@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mb-4 text-white">TLS Check Result</h2>
+
+{% if record %}
+<div class="card shadow-sm mb-4 bg-dark text-white">
+  <div class="card-header bg-primary text-white">
+    <strong>{{ record.hostname }}</strong> ({{ record.ip_address }})
+  </div>
+  <div class="card-body">
+    <p><b>Issuer:</b> {{ record.issuer }}</p>
+    <p><b>Subject:</b> {{ record.subject }}</p>
+    <p><b>Serial Number:</b> {{ record.serial_number }}</p>
+    <p><b>Expires:</b> {{ record.expires }}</p>
+    <p>
+      <b>Status:</b> 
+      {% if record.is_valid %}
+        <span class="badge bg-success text-white">Valid</span>
+      {% else %}
+        <span class="badge bg-danger text-white">Expired / Invalid</span>
+      {% endif %}
+    </p>
+    <p><small class="text-light">Checked at: {{ record.timestamp }}</small></p>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-warning">Tidak ada hasil.</div>
+{% endif %}
+
+<a href="{% url 'ops_tls' %}" class="btn btn-secondary">⬅ Back to TLS</a>
+{% endblock %}

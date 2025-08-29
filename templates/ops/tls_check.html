@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}TLS Analyzer{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-lock mr-2"></i>
+                        TLS Analyzer Dashboard
+                    </h3>
+                    <div class="card-tools">
+                        <form method="post" action="{% url 'ops_tls' %}" class="d-inline">
+                            {% csrf_token %}
+                            <div class="input-group input-group-sm" style="width: 300px;">
+                                <input type="text" name="domain" class="form-control" placeholder="Check domain..." required>
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-search"></i> Check
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="card-body">
+
+                  <!-- ⚠️ Warning Card -->
+                  {% if error_message %}
+                  <div class="card mt-3 border-warning">
+                    <div class="card-body text-warning">
+                      <i class="bi bi-exclamation-triangle"></i>
+                      {{ error_message }}
+                    </div>
+                  </div>
+                  {% endif %}
+
+                  {% if result %}
+                    <div class="alert alert-info mb-4">
+                        <h5 class="mb-3"><i class="fas fa-info-circle"></i> TLS Check Result</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p><strong>Domain:</strong> <code>{{ result.hostname }}</code></p>
+                                <p><strong>IP:</strong> {{ result.ip_address }}</p>
+                                <p><strong>Issuer:</strong> {{ result.issuer }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Expires:</strong> {{ result.expires|date:"M d, Y H:i" }}</p>
+                                <p><strong>Status:</strong> 
+                                    {% if result.is_valid %}
+                                        <span class="badge bg-success">Valid</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Invalid</span>
+                                    {% endif %}
+                                </p>
+                                <p><strong>Checked At:</strong> {{ result.timestamp|date:"M d, Y H:i" }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Organization:</strong> {{ result.organization|default:"-" }}</p>
+                                <p><strong>ASN:</strong> {{ result.asn|default:"-" }}</p>
+                                <p><strong>Country:</strong> {{ result.country|default:"-" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <!-- Statistics Cards -->
+                    {% comment %} <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">Total Checks</h5>
+                                    <p class="card-text">{{ total_checks }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">Valid</h5>
+                                    <p class="card-text">{{ total_valid }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">Invalid</h5>
+                                    <p class="card-text">{{ total_invalid }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">Unique Domains</h5>
+                                    <p class="card-text">{{ unique_domains }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div> {% endcomment %}
+
+                    <!-- Search and Filter -->
+                    <div class="row mb-3 mt-2">
+                        <div class="col-md-6">
+                            <form method="get" class="input-group">
+                                <input type="text" name="domain" class="form-control" id="searchInput" placeholder="Filter by domain...">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" type="submit">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        {% comment %} <div class="col-md-6 text-right">
+                            <span class="text-muted">
+                                {% if history %}
+                                    Showing {{ history.start_index }}-{{ history.end_index }} of {{ history.paginator.count }} checks
+                                {% else %}
+                                    Showing {{ history|length }} checks
+                                {% endif %}
+                            </span>
+                        </div> {% endcomment %}
+                    </div>
+
+                    <!-- TLS History Table -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th width="20%">Domain</th>
+                                    <th width="15%">IP Address</th>
+                                    <th width="25%">Issuer</th>
+                                    <th width="15%">Expires</th>
+                                    <th width="10%">Status</th>
+                                    <th width="15%">Checked At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in history %}
+                                <tr>
+                                    <td><code>{{ r.hostname }}</code></td>
+                                    <td>{{ r.ip_address }}</td>
+                                    <td>{{ r.issuer }}</td>
+                                    <td>{{ r.expires|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        {% if r.is_valid %}
+                                            <span class="badge bg-success">Valid</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Invalid</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ r.timestamp|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                                        <h5>No TLS checks yet</h5>
+                                        <p>Run your first TLS domain check to see history here.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if history and history.has_other_pages %}
+                    <nav aria-label="TLS history pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if history.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ history.previous_page_number }}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            {% endif %}
+
+                            {% for num in history.paginator.page_range %}
+                                {% if history.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > history.number|add:'-3' and num < history.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if history.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ history.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ history.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

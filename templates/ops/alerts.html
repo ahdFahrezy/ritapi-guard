@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Alert Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                
+                <!-- Header + Search -->
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title">
+                        <i class="fas fa-bell"></i> Alert Management
+                    </h3>
+                    <div class="card-tools">
+                        <form method="get" class="d-flex">
+                            <input type="text" name="q" class="form-control me-2" placeholder="Search alert..."
+                                  value="{{ query }}">
+                            <select name="severity" class="form-select me-2">
+                                <option value="">All Severities</option>
+                                <option value="low" {% if severity_filter == "low" %}selected{% endif %}>Low</option>
+                                <option value="medium" {% if severity_filter == "medium" %}selected{% endif %}>Medium</option>
+                                <option value="high" {% if severity_filter == "high" %}selected{% endif %}>High</option>
+                                <option value="critical" {% if severity_filter == "critical" %}selected{% endif %}>Critical</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card-body">
+
+                    <!-- ⚠️ Warning if no results -->
+                    {% if error_message %}
+                    <div class="card mt-3 border-warning">
+                        <div class="card-body text-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            {{ error_message }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 📜 Alerts Table -->
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>IP Address</th>
+                                    <th>Severity</th>
+                                    <th>Detail</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in alerts %}
+                                <tr>
+                                    <td>{{ a.alert_type }}</td>
+                                    <td><code>{{ a.ip_address }}</code></td>
+                                    <td>
+                                        {% if a.severity == "critical" %}
+                                            <span class="badge bg-danger">{{ a.severity|title }}</span>
+                                        {% elif a.severity == "high" %}
+                                            <span class="badge bg-warning text-dark">{{ a.severity|title }}</span>
+                                        {% elif a.severity == "medium" %}
+                                            <span class="badge bg-info">{{ a.severity|title }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success">{{ a.severity|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ a.detail|truncatechars:50 }}</td>
+                                    <td class="text-muted">{{ a.timestamp|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                                        <h5>No alerts found</h5>
+                                        <p>Once alerts are triggered, they will appear here.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if alerts and alerts.has_other_pages %}
+                    <nav aria-label="Alerts pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if alerts.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ alerts.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            {% endif %}
+
+                            {% for num in alerts.paginator.page_range %}
+                                {% if alerts.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > alerts.number|add:'-3' and num < alerts.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">{{ num }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if alerts.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ alerts.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ alerts.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">Last &raquo;</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

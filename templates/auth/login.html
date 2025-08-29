@@ -1,0 +1,40 @@
+{% extends "base_login.html" %}
+{% load widget_tweaks %}
+{% block title %}Login - Ritapi GUARD{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="height: 100vh;">
+    <div class="card p-4 shadow-lg" style="min-width: 400px;">
+        <div class="text-center mb-4">
+            <i class="fas fa-shield-alt fa-3x text-primary"></i>
+            <h3 class="mt-2 text-white">Ritapi GUARD</h3>
+            <p class="text-white">Secure Access Portal</p>
+        </div>
+
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> Invalid username or password.
+            </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label text-light">Username</label>
+                {{ form.username|add_class:"form-control bg-dark text-light border-0" }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label text-light">Password</label>
+                {{ form.password|add_class:"form-control bg-dark text-light border-0" }}
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="fas fa-sign-in-alt"></i> Login
+            </button>
+        </form>
+
+        <div class="mt-4 text-center">
+            <small class="text-white">&copy; 2025 Ritapi Security Suite</small>
+        </div>
+    </div>
+</div>
+{% endblock %}

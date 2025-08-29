@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ritapi GUARD{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #34495e;
+            --accent-color: #3498db;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --success-color: #27ae60;
+            --dark-bg: #1a1a1a;
+            --card-bg: #2d3748;
+            --text-light: #a0aec0;
+            --border-color: #4a5568;
+        }
+        
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .badge-medium {
+            background: linear-gradient(45deg, #ffb347, #ffcc33);
+            color: #000;
+            font-weight: bold;
+        }
+        .badge-high {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            color: #fff;
+            font-weight: bold;
+        }
+        .badge-low {
+            background: linear-gradient(45deg, #56ab2f, #a8e063);
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            transition: 0.3s;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+        }
+
+        
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar.collapsed {
+            width: 70px;
+        }
+        
+        .sidebar.collapsed .nav-link {
+            text-align: center;
+            margin:0;
+        }
+
+        .sidebar.collapsed .sidebar-monitoring {
+            display: none;
+        }
+
+        .sidebar.collapsed .sidebar-logo {
+            display: none;
+        }
+
+        .sidebar.collapsed .nav-link i {
+            margin-right: 0;
+        }
+
+        .sidebar.collapsed .nav-link .sidebar-text {
+            display: none;
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 5px 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(5px);
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            margin-right: 10px;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s ease;
+        }
+        
+        .main-content.expanded {
+            margin-left: 70px;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+            color: white;
+            border-bottom: none;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, var(--card-bg), rgba(52, 152, 219, 0.1));
+            border-left: 4px solid var(--accent-color);
+        }
+        
+        .stat-card.danger {
+            border-left-color: var(--danger-color);
+            background: linear-gradient(135deg, var(--card-bg), rgba(231, 76, 60, 0.1));
+        }
+        
+        .stat-card.warning {
+            border-left-color: var(--warning-color);
+            background: linear-gradient(135deg, var(--card-bg), rgba(243, 156, 18, 0.1));
+        }
+        
+        .stat-card.success {
+            border-left-color: var(--success-color);
+            background: linear-gradient(135deg, var(--card-bg), rgba(39, 174, 96, 0.1));
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, var(--accent-color), #5dade2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .navbar {
+            background: var(--card-bg) !important;
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+        }
+        
+        .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-color), #5dade2);
+            border: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger-color), #ec7063);
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-color), #f7dc6f);
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), #58d68d);
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .table-dark {
+            background-color: var(--card-bg);
+        }
+        
+        .table-dark td, .table-dark th {
+            border-color: var(--border-color);
+        }
+        
+        .badge {
+            border-radius: 20px;
+            padding: 8px 12px;
+        }
+        
+        .alert {
+            border-radius: 12px;
+            border: none;
+        }
+        
+        .progress {
+            height: 8px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .progress-bar {
+            border-radius: 10px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background-color: var(--success-color);
+            box-shadow: 0 0 10px var(--success-color);
+        }
+        
+        .status-offline {
+            background-color: var(--danger-color);
+            box-shadow: 0 0 10px var(--danger-color);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        
+        .real-time-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-color);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            margin-right: 5px;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7);
+            }
+            
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(39, 174, 96, 0);
+            }
+            
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(39, 174, 96, 0);
+            }
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle d-md-none" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    {% include "sidebar.html" %}
+    
+    
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Top Navigation -->
+        <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+            <div class="container-fluid">
+                <span class="navbar-brand">
+                    {% block page_title %}Ritapi GUARD{% endblock %}
+                </span>
+                
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-light me-3" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    
+                    <!-- Monitor Status -->
+                    <div class="me-3">
+                        <span class="badge bg-success" id="monitorStatus">
+                            <span class="status-indicator status-online"></span>
+                            Online
+                        </span>
+                    </div>
+                    
+                    <!-- Last Update -->
+                    <small class="text-white" id="lastUpdate">
+                        Last update: <span id="updateTime">--:--</span>
+                    </small>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Alerts Container -->
+        <div id="alertContainer"></div>
+        
+        <!-- Main Content Area -->
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script>
+        // Sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            
+            if (window.innerWidth > 768) {
+                // save the current state
+                const currentState = sidebar.classList.contains('collapsed');
+                localStorage.setItem('sidebarState', currentState);
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+            } else {
+                sidebar.classList.toggle('show');
+            }
+
+            // save the current state
+            const currentState = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarState', currentState);
+        }
+
+        // Initialize the sidebar state
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const currentState = localStorage.getItem('sidebarState');
+            if (currentState) {
+                sidebar.classList.toggle('collapsed', currentState === 'collapsed');
+            }
+        });
+        
+        // Update time display
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('updateTime').textContent = now.toLocaleTimeString();
+        }
+        
+        // Initialize
+        updateTime();
+        setInterval(updateTime, 1000);
+        
+        // WebSocket connection for real-time updates
+        let dashboardSocket = null;
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard/`;
+            
+            dashboardSocket = new WebSocket(wsUrl);
+            
+            dashboardSocket.onopen = function(e) {
+                console.log('Dashboard WebSocket connected');
+                updateMonitorStatus(true);
+            };
+            
+            dashboardSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.type === 'dashboard_update') {
+                    updateDashboardStats(data.data);
+                }
+            };
+            
+            dashboardSocket.onclose = function(e) {
+                console.log('Dashboard WebSocket disconnected');
+                updateMonitorStatus(false);
+                // Attempt to reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            dashboardSocket.onerror = function(e) {
+                console.error('Dashboard WebSocket error:', e);
+                updateMonitorStatus(false);
+            };
+        }
+        
+        function updateMonitorStatus(isOnline) {
+            const statusElement = document.getElementById('monitorStatus');
+            if (isOnline) {
+                statusElement.innerHTML = '<span class="status-indicator status-online"></span>Online';
+                statusElement.className = 'badge bg-success';
+            } else {
+                statusElement.innerHTML = '<span class="status-indicator status-offline"></span>Offline';
+                statusElement.className = 'badge bg-danger';
+            }
+        }
+        
+        function updateDashboardStats(stats) {
+            // Update dashboard statistics if elements exist
+            Object.keys(stats).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    element.textContent = stats[key];
+                }
+            });
+            
+            // Update system metrics if they exist
+            if (stats.system_metrics) {
+                updateSystemMetrics(stats.system_metrics);
+            }
+        }
+        
+        function updateSystemMetrics(metrics) {
+            // Update CPU usage
+            const cpuElement = document.getElementById('cpuUsage');
+            if (cpuElement) {
+                cpuElement.style.width = metrics.cpu_usage + '%';
+                cpuElement.textContent = metrics.cpu_usage.toFixed(1) + '%';
+            }
+            
+            // Update Memory usage
+            const memoryElement = document.getElementById('memoryUsage');
+            if (memoryElement) {
+                memoryElement.style.width = metrics.memory_usage + '%';
+                memoryElement.textContent = metrics.memory_usage.toFixed(1) + '%';
+            }
+            
+            // Update other metrics
+            ['active_connections', 'packets_per_second'].forEach(metric => {
+                const element = document.getElementById(metric);
+                if (element) {
+                    element.textContent = metrics[metric];
+                }
+            });
+        }
+        
+        // Show notifications
+        function showNotification(message, type = 'info') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            alertContainer.appendChild(alertDiv);
+
+            // Automatically scroll to the top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+        
+        // Initialize WebSocket connection
+        document.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                document.getElementById('sidebar').classList.remove('show');
+            }
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

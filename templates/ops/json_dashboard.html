@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+
+        <!-- Header + Add Button -->
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="card-title">
+            <i class="fas fa-database"></i>
+            JSON Schema Enforcer
+          </h3>
+          <div class="card-tools">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#schemaModal"
+                    onclick="openCreateModal()">
+              <i class="bi bi-plus-circle"></i> Add Schema
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body">
+
+          <!-- ⚠️ Warning if no results -->
+          {% if error_message %}
+          <div class="card mt-3 border-warning">
+            <div class="card-body text-warning">
+              <i class="bi bi-exclamation-triangle"></i>
+              {{ error_message }}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- 📜 Schema Table -->
+          <div class="table-responsive mt-3">
+            <table class="table table-bordered table-striped align-middle">
+              <thead>
+                <tr>
+                  <th style="width: 20%">Name</th>
+                  <th style="width: 25%">Service</th>
+                  <th style="width: 20%">Endpoint</th>
+                  <th style="width: 10%">Status</th>
+                  <th style="width: 25%" class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for schema in page_obj %}
+                <tr>
+                  <td>{{ schema.name }}</td>
+                  <td>
+                    {% if schema.service %}
+                      <code>{{ schema.service.target_base_url }}</code>
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td><code>{{ schema.endpoint }}</code></td>
+                  <td>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox"
+                             {% if schema.is_active %}checked{% endif %}
+                             onchange="toggleSchema({{ schema.id }}, this.checked)">
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <button class="btn btn-sm btn-warning me-1"
+                            data-bs-toggle="modal" data-bs-target="#schemaModal"
+                            onclick="openEditModal(
+                              {{ schema.id }},
+                              '{{ schema.name|escapejs }}',
+                              '{{ schema.endpoint|escapejs }}',
+                              '{{ schema.schema_json|escapejs }}',
+                              '{{ schema.description|default_if_none:''|escapejs }}',
+                              '{{ schema.service.uuid|default_if_none:'' }}'
+                            )">
+                      <i class="bi bi-pencil-square"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteSchema({{ schema.id }})">
+                      <i class="bi bi-trash"></i> Delete
+                    </button>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <h5>No schema available</h5>
+                    <p>Add your first JSON schema to see it listed here.</p>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          {% if page_obj and page_obj.has_other_pages %}
+          <nav aria-label="Schema pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+              {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page=1">&laquo; First</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+              {% endif %}
+
+              {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                {% endif %}
+              {% endfor %}
+
+              {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a></li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal (Add/Edit Schema) -->
+<div class="modal fade" id="schemaModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form id="schemaForm">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="schemaModalLabel">Add Schema</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="schemaId" name="id">
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-control" id="schemaName" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Service</label>
+            <select class="form-control" id="schemaService" name="service_uuid" required>
+              <option value="">-- Select Service --</option>
+              {% for service in services %}
+                <option value="{{ service.uuid }}">{{ service.target_base_url }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Endpoint</label>
+            <input type="text" class="form-control" id="schemaEndpoint" name="endpoint" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Schema JSON</label>
+            <textarea class="form-control font-monospace" id="schemaJson" name="schema_json" rows="8" required></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" id="schemaDesc" name="description" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function openCreateModal() {
+  document.getElementById("schemaModalLabel").innerText = "Add Schema";
+  document.getElementById("schemaForm").reset();
+  document.getElementById("schemaId").value = "";
+}
+
+function openEditModal(id, name, endpoint, schemaJson, description, serviceUuid) {
+  document.getElementById("schemaModalLabel").innerText = "Edit Schema";
+  document.getElementById("schemaId").value = id;
+  document.getElementById("schemaName").value = name;
+  document.getElementById("schemaEndpoint").value = endpoint;
+  document.getElementById("schemaJson").value = schemaJson;
+  document.getElementById("schemaDesc").value = description;
+  document.getElementById("schemaService").value = serviceUuid;
+}
+
+document.getElementById("schemaForm").onsubmit = function(e) {
+  e.preventDefault();
+  const id = document.getElementById("schemaId").value;
+  const url = id ? `/ops/json-enforcer/update/${id}/` : `/ops/json-enforcer/create/`;
+  const formData = new FormData(this);
+
+  Swal.fire({
+    title: id ? "Update Schema?" : "Create Schema?",
+    text: id ? "Do you want to save these changes?" : "Do you want to add this new schema?",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Yes, save it",
+    cancelButtonText: "Cancel"
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch(url, {
+        method: "POST",
+        body: formData,
+        headers: {"X-CSRFToken": formData.get("csrfmiddlewaretoken")},
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({
+            icon: "success",
+            title: "Success",
+            text: id ? "Schema has been updated successfully" : "Schema has been created successfully"
+          }).then(() => {
+            location.reload();
+          });
+        } else {
+          Swal.fire({
+            icon: "error",
+            title: "Failed",
+            text: data.message || "Failed to save schema"
+          });
+        }
+      })
+      .catch(() => {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Server error occurred"
+        });
+      });
+    }
+  });
+};
+
+function deleteSchema(id) {
+  Swal.fire({
+    title: "Are you sure you want to delete this schema?",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Yes, delete it",
+    cancelButtonText: "Cancel"
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch(`/ops/json-enforcer/delete/${id}/`, {
+        method: "POST",
+        headers: {"X-CSRFToken": "{{ csrf_token }}"},
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({
+            icon: "success",
+            title: "Deleted",
+            text: "Schema has been deleted successfully"
+          }).then(() => {
+            location.reload();
+          });
+        } else {
+          Swal.fire({
+            icon: "error",
+            title: "Failed",
+            text: data.message || "Failed to delete schema"
+          });
+        }
+      })
+      .catch(() => {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Server error occurred"
+        });
+      });
+    }
+  });
+}
+
+function toggleSchema(id, status) {
+  fetch(`/ops/json-enforcer/toggle/${id}/`, {
+    method: "POST",
+    headers: {"X-CSRFToken": "{{ csrf_token }}"},
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed",
+        text: "Unable to update status"
+      }).then(() => {
+        location.reload();
+      });
+    }
+  })
+  .catch(() => {
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Server error occurred"
+    }).then(() => {
+      location.reload();
+    });
+  });
+}
+</script>
+
+{% endblock %}

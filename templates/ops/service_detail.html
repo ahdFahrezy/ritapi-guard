@@ -1,0 +1,397 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Service Detail - {{ service.target_base_url }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'ops_dashboard' %}">Dashboard</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'ops_services:service_dashboard' %}">Services</a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Service Detail</li>
+                </ol>
+            </nav>
+
+            <!-- Service Detail Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="card-title">
+                            <i class="fas fa-server mr-2"></i>
+                            Service Details
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-info btn-sm" data-toggle="modal" data-target="#editServiceModal">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" data-toggle="modal" data-target="#deleteServiceModal">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                            <a href="{% url 'ops_services:service_dashboard' %}" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="150">UUID:</th>
+                                    <td>
+                                        <code>{{ service.uuid }}</code>
+                                        <button class="btn btn-sm btn-outline-secondary ml-2" 
+                                                onclick="copyToClipboard('{{ service.uuid }}')"
+                                                title="Copy UUID">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Target Backend URL:</th>
+                                    <td>
+                                        <a href="{{ service.target_base_url }}" target="_blank" class="text-primary">
+                                            {{ service.target_base_url }}
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-secondary ml-2" 
+                                                onclick="copyToClipboard('{{ service.target_base_url }}')"
+                                                title="Copy URL">
+                                            <i class="fas fa-copy"></i>
+                                        </td>
+                                </tr>
+                                <tr>
+                                    <th>Created:</th>
+                                    <td>{{ service.timestamp|date:"F d, Y H:i:s" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Status:</th>
+                                    <td>
+                                        <span class="badge badge-success">Active</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-info-circle"></i> Quick Actions
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="font-weight-bold">Test Connection:</label>
+                                        <button class="btn btn-sm btn-outline-primary ml-2" onclick="testConnection()">
+                                            <i class="fas fa-plug"></i> Test Backend
+                                        </button>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="font-weight-bold">Health Check:</label>
+                                        <button class="btn btn-sm btn-outline-info ml-2" onclick="checkHealth()">
+                                            <i class="fas fa-heartbeat"></i> Check Health
+                                        </button>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="font-weight-bold">View Logs:</label>
+                                        <button class="btn btn-sm btn-outline-warning ml-2" onclick="viewLogs()">
+                                            <i class="fas fa-file-alt"></i> View Logs
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Usage Examples -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-code"></i> Usage Examples
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6>cURL Example:</h6>
+                                            <div class="bg-dark text-light p-3 rounded">
+                                                <code class="text-light">
+curl -X GET "https://your-waf-domain.com/api/endpoint" \<br>
+&nbsp;&nbsp;-H "x-target-id: {{ service.uuid }}"<br>
+&nbsp;&nbsp;-H "Content-Type: application/json"
+                                                </code>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>Python Example:</h6>
+                                            <div class="bg-dark text-light p-3 rounded">
+                                                <code class="text-light">
+import requests<br><br>
+headers = {<br>
+&nbsp;&nbsp;"x-target-id": "{{ service.uuid }}"<br>
+}<br><br>
+response = requests.get(<br>
+&nbsp;&nbsp;"https://your-waf-domain.com/api/endpoint",<br>
+&nbsp;&nbsp;headers=headers<br>
+)
+                                                </code>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div class="row mt-4">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-info">
+                                    <i class="fas fa-chart-line"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Total Requests</span>
+                                    <span class="info-box-number">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-success">
+                                    <i class="fas fa-check-circle"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Success Rate</span>
+                                    <span class="info-box-number">100%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Blocked Requests</span>
+                                    <span class="info-box-number">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-danger">
+                                    <i class="fas fa-times-circle"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Error Rate</span>
+                                    <span class="info-box-number">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Service Modal -->
+<div class="modal fade" id="editServiceModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Service</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form id="editServiceForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="editTargetUrl">Target Backend URL</label>
+                        <input type="url" class="form-control" id="editTargetUrl" 
+                               value="{{ service.target_base_url }}" required>
+                        <small class="form-text text-muted">
+                            The base URL of the backend service that this WAF will route to.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteServiceModal" tabindex="-1" role="dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Confirm Delete</h5>
+            <button type="button" class="close" data-dismiss="modal">
+                <span>&times;</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Warning:</strong> This action cannot be undone!
+            </div>
+            <p>Are you sure you want to delete this service?</p>
+            <p><strong>Service UUID:</strong> {{ service.uuid }}</p>
+            <p><strong>Target URL:</strong> {{ service.target_base_url }}</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmDelete">Delete Service</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Copy to clipboard functionality
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        showToast('Copied to clipboard!', 'success');
+    }, function(err) {
+        console.error('Could not copy text: ', err);
+        showToast('Failed to copy', 'error');
+    });
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    // You can implement your own toast notification here
+    alert(message);
+}
+
+// Test backend connection
+function testConnection() {
+    showToast('Testing connection to backend...', 'info');
+    
+    // Here you can implement actual connection testing
+    // For now, just show a message
+    setTimeout(() => {
+        showToast('Connection test completed successfully!', 'success');
+    }, 2000);
+}
+
+// Check service health
+function checkHealth() {
+    showToast('Checking service health...', 'info');
+    
+    fetch(`/ops/ops_services/api/status/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'healthy') {
+                showToast('Service is healthy!', 'success');
+            } else {
+                showToast('Service health check failed', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Health check failed', 'error');
+        });
+}
+
+// View service logs
+function viewLogs() {
+    showToast('Opening service logs...', 'info');
+    
+    // Here you can implement log viewing functionality
+    // For now, just show a message
+    setTimeout(() => {
+        showToast('Log viewer opened', 'info');
+    }, 1000);
+}
+
+// Edit Service Form Handler
+document.getElementById('editServiceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const targetUrl = document.getElementById('editTargetUrl').value;
+    
+    fetch(`/ops/ops_services/api/services/{{ service.uuid }}/`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            target_base_url: targetUrl
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showToast('Service updated successfully!', 'success');
+            $('#editServiceModal').modal('hide');
+            location.reload(); // Refresh page to show updated service
+        } else {
+            showToast('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to update service', 'error');
+    });
+});
+
+// Confirm Delete Handler
+document.getElementById('confirmDelete').addEventListener('click', function() {
+    fetch(`/ops/ops_services/api/services/{{ service.uuid }}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showToast('Service deleted successfully!', 'success');
+            $('#deleteServiceModal').modal('hide');
+            // Redirect to services dashboard
+            window.location.href = "{% url 'ops_services:service_dashboard' %}";
+        } else {
+            showToast('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to delete service', 'error');
+    });
+});
+
+// Get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

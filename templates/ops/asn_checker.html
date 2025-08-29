@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ASN Checker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-project-diagram"></i>
+                        ASN Checker
+                    </h3>
+                    <div class="card-tools">
+                        <form method="post" action="{% url 'ops_asn_checker' %}" class="d-inline">
+                            {% csrf_token %}
+                            <div class="input-group input-group-sm" style="width: 280px;">
+                                <input type="text" name="ip" class="form-control" placeholder="Enter IP e.g. 8.8.8.8" required>
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-search"></i> Check
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="card-body">
+
+                    <!-- ⚠️ Warning -->
+                    {% if error_message %}
+                    <div class="card mt-3 border-warning">
+                      <div class="card-body text-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        {{ error_message }}
+                      </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- ✅ Result -->
+                    {% if result %}
+                    <div class="alert alert-info mb-4">
+                        <h5><i class="fas fa-info-circle"></i> ASN Lookup Result</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>IP Address:</strong> <code>{{ result.ip_address }}</code></p>
+                                <p><strong>ASN:</strong> {{ result.asn_number }}</p>
+                                <p><strong>Description:</strong> {{ result.asn_description|default:"-" }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Trust Score:</strong>
+                                    {% if result.trust_score < 0 %}
+                                        <span class="badge bg-danger">{{ result.trust_score }}</span>
+                                    {% elif result.trust_score > 0 %}
+                                        <span class="badge bg-success">{{ result.trust_score }}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">0</span>
+                                    {% endif %}
+                                </p>
+                                <p><strong>Checked At:</strong> {{ result.timestamp|date:"M d, Y H:i" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- History Table -->
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>ASN</th>
+                                    <th>Description</th>
+                                    <th>Trust Score</th>
+                                    <th>Checked At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in history %}
+                                <tr>
+                                    <td><code>{{ a.ip_address }}</code></td>
+                                    <td>{{ a.asn_number }}</td>
+                                    <td>{{ a.asn_description|truncatechars:50 }}</td>
+                                    <td>
+                                        {% if a.trust_score < 0 %}
+                                            <span class="badge bg-danger">{{ a.trust_score }}</span>
+                                        {% elif a.trust_score > 0 %}
+                                            <span class="badge bg-success">{{ a.trust_score }}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ a.timestamp|date:"M d, Y H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                                        <h5>No ASN lookups yet</h5>
+                                        <p>Run your first IP ASN check to see history here.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if history and history.has_other_pages %}
+                    <nav aria-label="ASN history pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if history.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?page=1">&laquo; First</a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ history.previous_page_number }}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            {% endif %}
+
+                            {% for num in history.paginator.page_range %}
+                                {% if history.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > history.number|add:'-3' and num < history.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if history.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page={{ history.next_page_number }}">Next</a></li>
+                                <li class="page-item"><a class="page-link" href="?page={{ history.paginator.num_pages }}">Last &raquo;</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                    <!-- Config Table -->
+                    <h5 class="mt-5 text-white">ASN Trust Config</h5>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ASN</th>
+                                    <th>Name</th>
+                                    <th>Score</th>
+                                    <th>Updated At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cfg in configs %}
+                                <tr>
+                                    <td>{{ cfg.asn_number }}</td>
+                                    <td>{{ cfg.name }}</td>
+                                    <td>{{ cfg.score }}</td>
+                                    <td>{{ cfg.updated_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#editAsnModal{{ cfg.id }}">
+                                            Edit
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-cogs fa-2x mb-2"></i>
+                                        <p>No ASN config yet</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Config Pagination -->
+                    {% if configs and configs.has_other_pages %}
+                    <nav aria-label="ASN config pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if configs.has_previous %}
+                                <li class="page-item"><a class="page-link" href="?cfg_page=1">&laquo; First</a></li>
+                                <li class="page-item"><a class="page-link" href="?cfg_page={{ configs.previous_page_number }}">Previous</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            {% endif %}
+
+                            {% for num in configs.paginator.page_range %}
+                                {% if configs.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > configs.number|add:'-3' and num < configs.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?cfg_page={{ num }}">{{ num }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if configs.has_next %}
+                                <li class="page-item"><a class="page-link" href="?cfg_page={{ configs.next_page_number }}">Next</a></li>
+                                <li class="page-item"><a class="page-link" href="?cfg_page={{ configs.paginator.num_pages }}">Last &raquo;</a></li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                                <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modals -->
+                    {% for cfg in configs %}
+                    <div class="modal fade" id="editAsnModal{{ cfg.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content bg-dark text-white">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Edit ASN {{ cfg.asn_number }}</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="post" action="{% url 'ops_asn_update_score' %}">
+                                    {% csrf_token %}
+                                    <div class="modal-body">
+                                        <input type="hidden" name="asn_number" value="{{ cfg.asn_number }}">
+                                        <div class="mb-3">
+                                            <label class="form-label">Name</label>
+                                            <input type="text" name="name" class="form-control" value="{{ cfg.name }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Trust Score</label>
+                                            <input type="number" name="score" class="form-control" value="{{ cfg.score }}" max="100" required>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-success">Save</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+{% endblock %}
