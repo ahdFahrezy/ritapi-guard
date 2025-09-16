@@ -44,7 +44,7 @@ def alert_dashboard(request):
     if filters_applied and not alerts.exists():
         error_message = "No alerts found with the given filters."
 
-    return render(request, "ops/alerts.html", {
+    return render(request, "ops_template/alerts.html", {
         "alerts": alerts_page,
         "query": query,
         "severity_filter": severity_filter,
@@ -108,7 +108,7 @@ def blocked_ip_dashboard(request):
     if filters_applied and not blocked_ips.exists():
         error_message = "No blocked IPs found with the given filters."
 
-    return render(request, "ops/blocked_ips.html", {
+    return render(request, "ops_template/blocked_ips.html", {
         "blocked_ips": blocked_page,
         "query": query,
         "severity_filter": severity_filter,

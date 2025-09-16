@@ -357,6 +357,17 @@
                 </span>
                 
                 <div class="d-flex align-items-center">
+
+                    <!-- License / Demo -->
+                    <div class="me-3">
+                        {% if not is_licensed %}
+                            <a href="{% url 'demo-page' %}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-play-circle"></i> Demo Mode
+                            </a>
+                        {% else %}
+                        {% endif %} 
+                    </div>
+
                     <button class="btn btn-outline-light me-3" onclick="toggleSidebar()">
                         <i class="fas fa-bars"></i>
                     </button>

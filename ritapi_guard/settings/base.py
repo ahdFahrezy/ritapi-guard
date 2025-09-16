@@ -6,8 +6,20 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+DJANGO_ENV = os.getenv("DJANGO_ENV", "dev")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
-DEBUG = os.getenv("DEBUG", "1") == "1"
+DEBUG = os.getenv("DEBUG", "1").strip() == "1"
+# Guards
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY is missing! Please set it in your environment.")
+
+# Guards
+if DJANGO_ENV == "prod":
+    if not SECRET_KEY:
+        raise ValueError("❌ SECRET_KEY is missing in production!")
+    if DEBUG:
+        raise ValueError("❌ DEBUG must be False in production!")
+
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 ALLOW_IPS = os.getenv("ALLOW_IPS", "127.0.0.1").split(",")
 ALLOW_IPS = [ip.strip() for ip in ALLOW_IPS if ip.strip()]
@@ -38,6 +50,7 @@ INSTALLED_APPS = [
     "json_enforcer",
     "tls_analyzer",
     "decision_engine",
+    "demo",
     
     # ops
     "ops",
@@ -73,6 +86,7 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
+    "middlewares.rate_limit.RateLimiterMiddleware",
     "ops.ops_license_manager.middleware.LicenseCheckMiddleware",  # Re-enable with fixes
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -84,7 +98,7 @@ MIDDLEWARE = [
     "decision_engine.middleware.DecisionProxyMiddleware",
 ]
 
-ROOT_URLCONF = "ritapi_advance.urls"
+ROOT_URLCONF = "ritapi_guard.urls"
 TEMPLATES = [{
     "BACKEND": "django.template.backends.django.DjangoTemplates",
     'DIRS': [BASE_DIR / "templates"],
@@ -94,10 +108,11 @@ TEMPLATES = [{
         "django.template.context_processors.request",
         "django.contrib.auth.context_processors.auth",
         "django.contrib.messages.context_processors.messages",
+        "ops.ops_license_manager.context_processors.license_status"
     ]},
 }]
-WSGI_APPLICATION = "ritapi_advance.wsgi.application"
-ASGI_APPLICATION = "ritapi_advance.asgi.application"
+WSGI_APPLICATION = "ritapi_guard.wsgi.application"
+ASGI_APPLICATION = "ritapi_guard.asgi.application"
 
 # DB dev: sqlite; production: ganti di prod.py ke Postgres
 # === Database (Postgres in Production) ===
@@ -196,10 +211,11 @@ LOGGING = {
 
 # === Redis / Cache Settings ===
 # Flag untuk ON/OFF caching backend response
-ENABLE_BACKEND_CACHE = False
+ENABLE_BACKEND_CACHE = True
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 # TTL (seconds) untuk cache response backend
 BACKEND_RESPONSE_CACHE_TTL = int(os.getenv("BACKEND_RESPONSE_CACHE_TTL", "30"))
+ASN_TLS_CACHE_TTL = int(os.getenv("ASN_TLS_CACHE_TTL", "30"))
 
 # === License Management Settings ===
 # License API configuration

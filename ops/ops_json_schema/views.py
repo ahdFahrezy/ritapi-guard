@@ -23,7 +23,7 @@ def jsonschema_dashboard(request):
     
     services = Service.objects.all().order_by("-timestamp")
 
-    return render(request, "ops/json_dashboard.html", {
+    return render(request, "ops_template/json_dashboard.html", {
         "page_obj": page_obj,
         "services": services,
     })

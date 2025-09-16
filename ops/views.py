@@ -52,4 +52,4 @@ def dashboard(request):
         "recent_blocked": BlockedIP.objects.order_by("-blocked_at")[:5],
         "recent_tls": TlsAnalyzer.objects.order_by("-timestamp")[:5],
     }
-    return render(request, "ops/dashboard.html", context)
+    return render(request, "ops_template/dashboard.html", context)

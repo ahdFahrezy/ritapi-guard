@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# RitAPI Advance Setup Script
-# This script sets up and runs the RitAPI Advance Django project
+# RitAPI guard Setup Script
+# This script sets up and runs the RitAPI guard Django project
 
 set -e  # Exit on any error
 
-APP_NAME="ritapi-advance"
+APP_NAME="ritapi-guard"
 APP_DIR="/opt/${APP_NAME}"
 
 # Colors for output
@@ -110,7 +110,7 @@ install_dependencies() {
 check_database() {
     print_status "Checking PostgreSQL database..."
     
-    DB_NAME=${POSTGRES_DB:-ritapi_advance_test_2}
+    DB_NAME=${POSTGRES_DB:-ritapi_guard_test_2}
     DB_USER=${POSTGRES_USER:-postgres}
     DB_HOST=${POSTGRES_HOST:-127.0.0.1}
     DB_PORT=${POSTGRES_PORT:-5432}
@@ -189,23 +189,46 @@ setup_logs() {
 # Function to check environment file
 check_env_file() {
     if [[ ! -f ".env" ]]; then
-        print_status "Creating .env file from template..."
+        print_status "Setting up database configuration..."
+        
+        # Database interactive configuration
+        printf "Enter PostgreSQL database name [default=ritapi_advance_test_2]: "
+        read -r db_name
+        db_name=${db_name:-ritapi_advance_test_2}
+
+        printf "Enter PostgreSQL username [default=postgres]: "
+        read -r db_user
+        db_user=${db_user:-postgres}
+
+        printf "Enter PostgreSQL password [default=admin]: "
+        read -r db_password
+        db_password=${db_password:-admin}
+
+        printf "Enter PostgreSQL host [default=localhost]: "
+        read -r db_host
+        db_host=${db_host:-localhost}
+
+        printf "Enter PostgreSQL port [default=5432]: "
+        read -r db_port
+        db_port=${db_port:-5432}
+
+        print_status "Creating .env file with provided configuration..."
         cat > .env << EOF
 # Django Settings
 SECRET_KEY=your-secret-key-here-change-in-production
-DEBUG=1
+DEBUG=0
 ALLOWED_HOSTS=127.0.0.1,localhost
 ALLOW_IPS=127.0.0.1
 DJANGO_ENV=prod
 
-# Database (for production, uncomment and configure PostgreSQL)
-# DATABASE_URL=postgres://postgres:@localhost:5432/ritapi_advance
-POSTGRES_DB=ritapi_advance_test_2
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=admin
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-MAX_SERVICES=10
+# Database Configuration
+POSTGRES_DB=${db_name}
+POSTGRES_USER=${db_user}
+POSTGRES_PASSWORD=${db_password}
+POSTGRES_HOST=${db_host}
+POSTGRES_PORT=${db_port}
+DATABASE_URL=postgres://${db_user}:${db_password}@${db_host}:${db_port}/${db_name}
+MAX_SERVICES=2000
 
 # Security
 # CSRF_TRUSTED_ORIGINS=https://yourdomain.com
@@ -213,9 +236,54 @@ MAX_SERVICES=10
 # SESSION_COOKIE_SECURE=False
 # CSRF_COOKIE_SECURE=False
 EOF
-        print_success ".env file created. Please review and update the values."
+        print_success ".env file created with custom database configuration."
     else
         print_status ".env file already exists"
+        printf "Do you want to reconfigure database settings? [y/N]: "
+        read -r reconfigure
+        
+        if [[ "${reconfigure,,}" == "y" ]]; then
+            # Backup existing .env
+            cp .env .env.backup
+            print_status "Existing .env backed up to .env.backup"
+            
+            # Get current values for defaults
+            current_db=$(grep POSTGRES_DB .env | cut -d= -f2 || echo "ritapi_advance_test_2")
+            current_user=$(grep POSTGRES_USER .env | cut -d= -f2 || echo "postgres")
+            current_pass=$(grep POSTGRES_PASSWORD .env | cut -d= -f2 || echo "admin")
+            current_host=$(grep POSTGRES_HOST .env | cut -d= -f2 || echo "localhost")
+            current_port=$(grep POSTGRES_PORT .env | cut -d= -f2 || echo "5432")
+
+            printf "Enter PostgreSQL database name [current=${current_db}]: "
+            read -r db_name
+            db_name=${db_name:-$current_db}
+
+            printf "Enter PostgreSQL username [current=${current_user}]: "
+            read -r db_user
+            db_user=${db_user:-$current_user}
+
+            printf "Enter PostgreSQL password [current=${current_pass}]: "
+            read -r db_password
+            db_password=${db_password:-$current_pass}
+
+            printf "Enter PostgreSQL host [current=${current_host}]: "
+            read -r db_host
+            db_host=${db_host:-$current_host}
+
+            printf "Enter PostgreSQL port [current=${current_port}]: "
+            read -r db_port
+            db_port=${db_port:-$current_port}
+
+            # Update database settings in .env file
+            sed -i "s/POSTGRES_DB=.*/POSTGRES_DB=${db_name}/" .env
+            sed -i "s/POSTGRES_USER=.*/POSTGRES_USER=${db_user}/" .env
+            sed -i "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${db_password}/" .env
+            sed -i "s/POSTGRES_HOST=.*/POSTGRES_HOST=${db_host}/" .env
+            sed -i "s/POSTGRES_PORT=.*/POSTGRES_PORT=${db_port}/" .env
+            sed -i "s|DATABASE_URL=.*|DATABASE_URL=postgres://${db_user}:${db_password}@${db_host}:${db_port}/${db_name}|" .env
+            
+            print_success "Database configuration updated in .env file."
+        fi
     fi
 }
 
@@ -257,7 +325,7 @@ show_usage() {
 main() {
     case "${1:-full}" in
         "setup")
-            print_status "Starting RitAPI Advance setup..."
+            print_status "Starting RitAPI Guard setup..."
             check_python_version
             if ! check_venv; then
                 create_venv
@@ -273,7 +341,7 @@ main() {
             print_success "Setup completed successfully!"
             ;;
         "run")
-            print_status "Starting RitAPI Advance..."
+            print_status "Starting RitAPI Guard..."
             check_python_version
             if ! check_venv; then
                 print_error "Virtual environment not found. Please run setup first: $0 setup"
@@ -283,7 +351,7 @@ main() {
             run_dev_server
             ;;
         "full")
-            print_status "Starting full RitAPI Advance setup and run..."
+            print_status "Starting full RitAPI Guard setup and run..."
             check_python_version
             if ! check_venv; then
                 create_venv

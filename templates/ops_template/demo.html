@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% block title %}DEMO{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-white">DEMO</h2>
+
+    <!-- Alert Message -->
+    {% if message %}
+    <div class="alert alert-info">
+        {{ message }}
+    </div>
+    {% endif %}
+
+    <!-- Dropdown + Tombol Test -->
+    <div class="mb-3">
+        <form method="get" class="d-flex align-items-center gap-2">
+            <select name="add" id="testType" class="form-select w-auto">
+                <option value="SUCCESS_LOGIN">Success Login (No alert/block)</option>
+                <option value="TLS_ANALYZER_ERROR">TLS Analyzer Error (Low)</option>
+                <option value="SUSPICIOUS_ASN">Suspicious ASN (Medium)</option>
+                <option value="BLOCKED">Malformed JSON (Blocked)</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Run Test</button>
+        </form>
+    </div>
+
+    <!-- Contoh Curl -->
+    <div id="curlBox" class="mb-4" style="display:none;">
+        <label><strong>Sample cURL Command:</strong></label>
+        <pre class="bg-dark text-white p-3 rounded"><code id="curlCommand"></code></pre>
+    </div>
+
+    <!-- Tabel Alerts -->
+    <h4 class="text-white">Alerts</h4>
+    <table class="table table-bordered table-hover">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>IP Address</th>
+                <th>Severity</th>
+                <th>Detail</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for alert in alerts %}
+            <tr>
+                <td>{{ alert.type }}</td>
+                <td>{{ alert.ip }}</td>
+                <td>
+                    {% if alert.severity == "Low" %}
+                        <span class="badge bg-success">{{ alert.severity }}</span>
+                    {% elif alert.severity == "Medium" %}
+                        <span class="badge bg-info">{{ alert.severity }}</span>
+                    {% else %}
+                        <span class="badge bg-danger">{{ alert.severity }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ alert.detail }}</td>
+                <td>{{ alert.timestamp }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No alerts found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination Alerts -->
+    {% if page_range_alerts|length > 1 %}
+    <nav>
+    <ul class="pagination">
+        {% for p in page_range_alerts %}
+        <li class="page-item {% if p == page_alerts %}active{% endif %}">
+            <a class="page-link" href="?page_alerts={{ p }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+    </nav>
+    {% endif %}
+
+    <!-- Tabel Block -->
+    <h4 class="text-white">Blocked</h4>
+    <table class="table table-bordered table-hover">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>IP Address</th>
+                <th>Severity</th>
+                <th>Detail</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for block in blocks %}
+            <tr>
+                <td>{{ block.type }}</td>
+                <td>{{ block.ip }}</td>
+                <td><span class="badge bg-danger">{{ block.severity }}</span></td>
+                <td>{{ block.detail }}</td>
+                <td>{{ block.timestamp }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No blocked data</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination Blocks -->
+    {% if page_range_blocks|length > 1 %}
+    <nav>
+    <ul class="pagination">
+        {% for p in page_range_blocks %}
+        <li class="page-item {% if p == page_blocks %}active{% endif %}">
+            <a class="page-link" href="?page_blocks={{ p }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const select = document.getElementById("testType");
+    const curlBox = document.getElementById("curlBox");
+    const curlCmd = document.getElementById("curlCommand");
+
+    // Ambil target-id dari context Django
+    const targetId = "{{ target_id }}";
+
+    function updateCurl() {
+        let type = select.value;
+        let curl = "";
+
+        if (type === "TLS_ANALYZER_ERROR") {
+            curl = `curl -X POST http://localhost:8000/api/login \\
+  -H "Content-Type: application/json" \\
+  -H "x-target-id: ${targetId}" \\
+  -d '{"username": "alice", "password": "wrongpass"}'`;
+        } else if (type === "SUSPICIOUS_ASN") {
+            curl = `curl -X POST http://localhost:8000/api/login \\
+  -H "Content-Type: application/json" \\
+  -H "x-target-id: ${targetId}" \\
+  -d '{"username": "bob", "password": "suspect"}'`;
+        } else if (type === "BLOCKED") {
+            curl = `curl -X POST http://localhost:8000/api/login \\
+  -H "Content-Type: application/json" \\
+  -H "x-target-id: ${targetId}" \\
+  -d '{"username": "charlie", "password": "{MALFORMED}"}'`;
+        } else if (type === "SUCCESS_LOGIN") {
+            curl = `curl -X POST http://localhost:8000/api/login \\
+  -H "Content-Type: application/json" \\
+  -H "x-target-id: ${targetId}" \\
+  -d '{"username": "demo", "password": "demo123"}'`;
+        }
+
+        curlCmd.textContent = curl;
+        curlBox.style.display = "block";
+    }
+
+    updateCurl();
+    select.addEventListener("change", updateCurl);
+});
+</script>
+{% endblock %}

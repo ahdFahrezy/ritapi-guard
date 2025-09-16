@@ -1,5 +1,5 @@
 """
-URL configuration for ritapi_advance project.
+URL configuration for ritapi_guard project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.2/topics/http/urls/
@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from django.shortcuts import redirect
+from ritapi_guard.views import healthz, readyz
 
 def home_redirect(request):
     if request.user.is_authenticated:
@@ -30,6 +31,9 @@ urlpatterns = [
     path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
     
     path('admin/', admin.site.urls),
+    
+    path("healthz", healthz, name="healthz"),
+    path("readyz", readyz, name="readyz"),
     
     # License Management will be handled by ops.urls
     
@@ -53,6 +57,8 @@ urlpatterns = [
     
     # ops dashboard
     path("ops/", include("ops.urls")),
+    
+    path("demo/", include("demo.urls")),
     
     path("", home_redirect, name="home_redirect"),
 

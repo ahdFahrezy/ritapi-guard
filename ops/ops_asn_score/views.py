@@ -55,7 +55,7 @@ def asn_checker(request):
         "history": history,
         "configs": configs,
     }
-    return render(request, "ops/asn_checker.html", context)
+    return render(request, "ops_template/asn_checker.html", context)
 
 @login_required
 def asn_update_score(request):

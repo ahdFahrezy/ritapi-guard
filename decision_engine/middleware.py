@@ -9,12 +9,100 @@ from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 from .models import RequestLog
 
+
 # Import Service model for dynamic backend routing
 try:
     from ops.ops_services.models import Service
 except ImportError:
     Service = None
 
+CACHE_TTL = getattr(settings, "BACKEND_RESPONSE_CACHE_TTL", int(os.getenv("BACKEND_RESPONSE_CACHE_TTL", "30")))
+ASN_TLS_CACHE_TTL = getattr(settings, "ASN_TLS_CACHE_TTL", int(os.getenv("ASN_TLS_CACHE_TTL", "30")))
+# === Redis Singleton ===
+class RedisClientSingleton:
+    _instance = None
+
+    @classmethod
+    def get_client(cls):
+        if cls._instance is None:
+            try:
+                import redis
+                cls._instance = redis.from_url(
+                    getattr(settings, "REDIS_URL", "redis://127.0.0.1:6379/0"),
+                    decode_responses=False
+                )
+                # test koneksi
+                cls._instance.ping()
+                logger.info("Redis client initialized (singleton)")
+            except Exception as e:
+                logger.warning("Redis unavailable, cache disabled: %s", e)
+                cls._instance = None
+        return cls._instance
+    
+# === Service lookup cache ===
+def _get_service_from_db(target_id: str):
+    """In-memory fallback lookup kalau Redis tidak ada."""
+    try:
+        service = Service.objects.get(uuid=target_id)
+        return {
+            "id": service.id,
+            "uuid": str(service.uuid),
+            "target_base_url": service.target_base_url,
+        }
+    except Service.DoesNotExist:
+        return None
+
+
+def get_service_cached(target_id: str):
+    cache_key = f"ritapi:service:{target_id}"
+    redis_client = RedisClientSingleton.get_client()
+
+    # coba ambil dari Redis
+    if redis_client:
+        try:
+            cached = redis_client.get(cache_key)
+            if cached:
+                return json.loads(cached)
+        except Exception:
+            pass
+
+    # fallback ke DB langsung
+    service_data = _get_service_from_db(target_id)
+
+    if service_data and redis_client:
+        try:
+            redis_client.setex(cache_key, CACHE_TTL, json.dumps(service_data))
+        except Exception:
+            pass
+    return service_data
+
+# === Allowed service IDs cache ===
+def _get_allowed_service_ids_from_db(max_services: int):
+    """In-memory fallback untuk daftar service IDs."""
+    return list(Service.objects.values_list("id", flat=True).order_by("id")[:max_services])
+
+def get_allowed_service_ids(max_services: int):
+    cache_key = f"ritapi:allowed_services:{max_services}"
+    redis_client = RedisClientSingleton.get_client()
+
+    if redis_client:
+        try:
+            cached = redis_client.get(cache_key)
+            if cached:
+                return json.loads(cached)
+        except Exception:
+            pass
+
+    # fallback ke DB langsung
+    ids = _get_allowed_service_ids_from_db(max_services)
+
+    if redis_client:
+        try:
+            redis_client.setex(cache_key, CACHE_TTL, json.dumps(ids))
+        except Exception:
+            pass
+    return ids    
+    
 logger = logging.getLogger(__name__)
 
 # === Safely import your 6 modules (best-effort) ===
@@ -47,7 +135,7 @@ def _safe_imports():
     try:
         from ai_behaviour.services import BehaviourProfiler
         mods["log_req"] = BehaviourProfiler.log_request
-        mods["is_anom"] = BehaviourProfiler.is_anomalous
+        mods["is_anom"] = BehaviourProfiler.detect_anomaly
     except Exception:
         mods["log_req"] = None
         mods["is_anom"] = None
@@ -80,12 +168,8 @@ class DecisionProxyMiddleware(MiddlewareMixin):
     def process_request(self, request):
         path = request.get_full_path()
         cache_enabled = bool(getattr(settings, "ENABLE_BACKEND_CACHE", True))
-        redis_client = None
-        try:
-            import redis
-            redis_client = redis.from_url(getattr(settings, "REDIS_URL", "redis://127.0.0.1:6379/0"), decode_responses=False)
-        except Exception as e:
-            print("Redis disabled: %s", e)
+        redis_client = RedisClientSingleton.get_client()
+        if redis_client is None:
             cache_enabled = False
 
         
@@ -100,6 +184,9 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             or path.startswith("/ops")
             or path.startswith("/logout")
             or path.startswith("/tls")
+            or path.startswith("/healthz")
+            or path.startswith("/readyz")
+            or path.startswith("/demo")
         ):
             return None
 
@@ -141,26 +228,42 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             
             # First, try to get the service by target_id
             try:
-                service = Service.objects.get(uuid=target_id)
-            except Service.DoesNotExist:
-                self._log(client_ip, path, request.method, len(body), 0, "block", "target_service_not_found")
+                # 1) Ambil service dari cache (Redis → fallback LRU memory → DB)
+                service_data = get_service_cached(target_id)
+                if not service_data:
+                    self._log(client_ip, path, request.method, len(body), 0, "block", "target_service_not_found")
+                    return JsonResponse({
+                        "error": "Target service not found",
+                        "detail": f"No service found with ID: {target_id}"
+                    }, status=404)
+
+                # 2) Ambil daftar allowed services dari cache
+                allowed_service_ids = get_allowed_service_ids(max_services)
+
+                if service_data["id"] not in allowed_service_ids:
+                    self._log(client_ip, path, request.method, len(body), 0, "block", "service_not_in_allowed_limit")
+                    return JsonResponse({
+                        "error": "Service access denied",
+                        "detail": f"Service {target_id} is not within the allowed service limit (MAX_SERVICES: {max_services})"
+                    }, status=403)
+
+                # 3) Target backend dari hasil cache
+                target_backend = service_data["target_base_url"]
+
+            except ValueError as e:
+                logger.error(f"Invalid MAX_SERVICES value: {e}")
+                self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_max_services_config")
                 return JsonResponse({
-                    "error": "Target service not found", 
-                    "detail": f"No service found with ID: {target_id}"
-                }, status=404)
-            
-            # Check if this service is within the allowed MAX_SERVICES limit
-            # Get the IDs of the first MAX_SERVICES services (ordered by id for consistency)
-            allowed_service_ids = list(Service.objects.values_list('id', flat=True).order_by('id')[:max_services])
-            
-            if service.id not in allowed_service_ids:
-                self._log(client_ip, path, request.method, len(body), 0, "block", "service_not_in_allowed_limit")
+                    "error": "Configuration error",
+                    "detail": "Invalid MAX_SERVICES configuration"
+                }, status=500)
+            except Exception as e:
+                logger.error(f"Error looking up service {target_id}: {e}")
+                self._log(client_ip, path, request.method, len(body), 0, "block", "service_lookup_error")
                 return JsonResponse({
-                    "error": "Service access denied", 
-                    "detail": f"Service {target_id} is not within the allowed service limit (MAX_SERVICES: {max_services})"
-                }, status=403)
-                
-            target_backend = service.target_base_url
+                    "error": "Service lookup error",
+                    "detail": "Unable to determine target service"
+                }, status=503)
             
         except ValueError as e:
             logger.error(f"Invalid MAX_SERVICES value: {e}")
@@ -214,7 +317,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                         if k.lower() not in ("content-encoding", "transfer-encoding", "connection"):
                             response[k] = v
                     response["X-Cache-Status"] = "hit"
-                    response["X-Target-Service"] = str(service.uuid)
+                    response["X-Target-Service"] = str(service_data["uuid"])
                     self._log(client_ip, path, request.method, len(body), score, decision, reason)
                     return response
                 except Exception as e:
@@ -222,7 +325,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
         
         allow_ips = getattr(settings, "ALLOW_IPS", [])
         if client_ip in allow_ips:
-            print("DEBUG bypass security checks for whitelisted IP:", client_ip)
+            
             try:
                 url = f"{target_backend}{path}"
                 headers = dict(request.headers)
@@ -240,7 +343,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                 for k, v in resp.headers.items():
                     if k.lower() not in ("content-encoding", "transfer-encoding", "connection"):
                         response[k] = v
-                response["X-Target-Service"] = str(service.uuid)
+                response["X-Target-Service"] = str(service_data["uuid"])
                 return response
             except Exception as e:
                 return JsonResponse({"error": "backend_unreachable", "detail": str(e)}, status=502)
@@ -250,7 +353,26 @@ class DecisionProxyMiddleware(MiddlewareMixin):
         try:
             from tls_analyzer.services import TlsAnalyzerService
             host = request.headers.get("Host", "localhost")
-            tls_record = TlsAnalyzerService.get_or_analyze_tls(host)
+            tls_cache_key = f"ritapi:tls:{host}"
+            tls_record = None
+            if redis_client:
+                try:
+                    cached_tls = redis_client.get(tls_cache_key)
+                    if cached_tls:
+                        tls_record = json.loads(cached_tls)
+                except Exception:
+                    pass
+
+            if not tls_record:
+                # kalau belum ada di cache → analyze
+                tls_record = TlsAnalyzerService.get_or_analyze_tls(host)
+                if tls_record and redis_client:
+                    tls_record_to_dict = TlsAnalyzerService.tls_record_to_dict(tls_record)
+                    try:
+                        redis_client.setex(tls_cache_key, ASN_TLS_CACHE_TTL, json.dumps(tls_record_to_dict))
+                    except Exception:
+                        pass
+                       
             if tls_record is None:
                 tls_valid = True
                 if MODULES["alert"]:
@@ -261,7 +383,6 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                         "medium"
                     )
         except Exception as e:
-            print("TLS Analyzer error:", e)
             tls_valid = True  # fallback biar nggak nge-block request
 
 
@@ -269,9 +390,34 @@ class DecisionProxyMiddleware(MiddlewareMixin):
         asn_trust = 0
         if MODULES["lookup_asn"]:
             try:
-                asn_obj = MODULES["lookup_asn"](client_ip)
+                asn_cache_key = f"ritapi:asn:{client_ip}"
+                asn_obj = None
+                if redis_client:
+                    try:
+                        cached_asn = redis_client.get(asn_cache_key)
+                        if cached_asn:
+                            asn_obj = json.loads(cached_asn)
+                    except Exception:
+                        pass
+                if not asn_obj:
+                    asn_obj = MODULES["lookup_asn"](client_ip)
+                    if asn_obj and redis_client:
+                        try:
+                            asn_obj_dict = {
+                                "ip_address": getattr(asn_obj, "ip_address", None),
+                                "asn_number": getattr(asn_obj, "asn_number", None),
+                                "asn_description": getattr(asn_obj, "asn_description", None),
+                                "trust_score": getattr(asn_obj, "trust_score", 0),
+                                "is_latest": getattr(asn_obj, "is_latest", False),
+                                "created_at": getattr(asn_obj, "created_at", None).isoformat() if getattr(asn_obj, "created_at", None) else None,
+                            }
+                            redis_client.setex(asn_cache_key, ASN_TLS_CACHE_TTL, json.dumps(asn_obj_dict))
+                        except Exception as e:
+                            logger.error(f"Error caching ASN : {e}")
+                            print("ASN cache failed:", e)
                 # support both model instance and dict
-                asn_trust = getattr(asn_obj, "trust_score", 0) if hasattr(asn_obj, "trust_score") else asn_obj.get("trust_score", 0)
+                if asn_obj:
+                    asn_trust = getattr(asn_obj, "trust_score", 0) if hasattr(asn_obj, "trust_score") else asn_obj.get("trust_score", 0)
                 # 🚨 Alert jika ASN trust score < -2
                 if asn_trust < -2 and MODULES["alert"]:
                     MODULES["alert"].create_alert(
@@ -419,7 +565,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                     forwarded_headers[k] = v
 
             # Add target service info to response headers
-            response["X-Target-Service"] = str(service.uuid)
+            response["X-Target-Service"] = str(service_data["uuid"])
             response["X-Target-URL"] = target_backend
 
             if cache_enabled and redis_client is not None and request.method in ("GET", "HEAD") and resp.status_code == 200:

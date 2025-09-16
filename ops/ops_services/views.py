@@ -52,11 +52,11 @@ def service_dashboard(request):
             'page_title': 'Service Management Dashboard'
         }
         
-        return render(request, 'ops/service_dashboard.html', context)
+        return render(request, 'ops_template/service_dashboard.html', context)
         
     except Exception as e:
         logger.error(f"Error displaying service dashboard: {e}")
-        return render(request, 'ops/service_dashboard.html', {
+        return render(request, 'ops_template/service_dashboard.html', {
             'services': [],
             'total_services': 0,
             'page_title': 'Service Management Dashboard'
@@ -74,7 +74,7 @@ def service_detail_view(request, service_uuid):
             'page_title': f'Service Detail - {service.target_base_url}'
         }
         
-        return render(request, 'ops/service_detail.html', context)
+        return render(request, 'ops_template/service_detail.html', context)
         
     except Service.DoesNotExist:
         # Redirect to dashboard if service not found

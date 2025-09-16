@@ -45,7 +45,7 @@ def tls_dashboard(request):
         "history": history,           # riwayat dengan pagination
         "domain_filter": domain_filter,
     }
-    return render(request, "ops/tls_check.html", context)
+    return render(request, "ops_template/tls_check.html", context)
     
     
 @login_required
@@ -60,6 +60,6 @@ def tls_check_new(request):
         if domain:
             record = TlsAnalyzerService.get_or_analyze_tls(domain)
 
-    return render(request, "ops/tls_result.html", {
+    return render(request, "ops_template/tls_result.html", {
         "record": record
     })

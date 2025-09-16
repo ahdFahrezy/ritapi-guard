@@ -37,7 +37,7 @@ def ip_reputation_dashboard(request):
     page_number = request.GET.get("page")
     history = paginator.get_page(page_number)
 
-    return render(request, "ops/ip_reputation.html", {
+    return render(request, "ops_template/ip_reputation.html", {
         "result": result,
         "error_message": error_message,  # ✅ pass to template
         "history": history,

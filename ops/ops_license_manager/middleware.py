@@ -29,7 +29,9 @@ class LicenseCheckMiddleware(MiddlewareMixin):
             '/static/',
             '/media/',
             '/__debug__/',
-            '/health/',
+            '/healthz/',
+            '/readyz/',
+            '/demo/',
             '/favicon.ico'
         ]
         
