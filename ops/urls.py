@@ -11,6 +11,7 @@ urlpatterns = [
     path("", include("ops.ops_services.urls")),
         # License Management
     path("license/", include("ops.ops_license_manager.urls")),
+    path("requestlogs/", include("ops.ops_logs.urls")),
 
     # path("tls/", views.tls_check, name="ops_tls"),
     # path("ip-reputation/", views.ip_reputation, name="ops_ip_reputation"),

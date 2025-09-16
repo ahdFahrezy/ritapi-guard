@@ -105,6 +105,7 @@ def get_allowed_service_ids(max_services: int):
     
 logger = logging.getLogger(__name__)
 
+
 # === Safely import your 6 modules (best-effort) ===
 def _safe_imports():
     mods = {}
@@ -133,9 +134,9 @@ def _safe_imports():
         mods["json_validate"] = None
 
     try:
-        from ai_behaviour.services import BehaviourProfiler
-        mods["log_req"] = BehaviourProfiler.log_request
-        mods["is_anom"] = BehaviourProfiler.detect_anomaly
+        from ai_behaviour.services import AiProfilerService
+        mods["log_req"] = AiProfilerService.log_request
+        mods["is_anom"] = AiProfilerService.detect_anomaly
     except Exception:
         mods["log_req"] = None
         mods["is_anom"] = None
@@ -187,6 +188,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             or path.startswith("/healthz")
             or path.startswith("/readyz")
             or path.startswith("/demo")
+            or path.startswith("/ai")
         ):
             return None
 
@@ -197,7 +199,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
         # === 0) Extract x-target-id header and validate service
         target_id = request.headers.get("x-target-id")
         if not target_id:
-            self._log(client_ip, path, request.method, len(body), 0, "block", "missing_target_id")
+            # self._log(client_ip, path, request.method, len(body), 0, "block", "missing_target_id")
             return JsonResponse({
                 "error": "Missing required header", 
                 "detail": "x-target-id header is required"
@@ -208,7 +210,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             import uuid
             uuid.UUID(target_id)
         except ValueError:
-            self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_target_id_format")
+            # self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_target_id_format")
             return JsonResponse({
                 "error": "Invalid target ID format", 
                 "detail": "x-target-id must be a valid UUID"
@@ -216,7 +218,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
         
         # Lookup service by UUID
         if not Service:
-            self._log(client_ip, path, request.method, len(body), 0, "block", "service_model_unavailable")
+            # self._log(client_ip, path, request.method, len(body), 0, "block", "service_model_unavailable")
             return JsonResponse({
                 "error": "Service unavailable", 
                 "detail": "Service routing is not available"
@@ -231,7 +233,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                 # 1) Ambil service dari cache (Redis → fallback LRU memory → DB)
                 service_data = get_service_cached(target_id)
                 if not service_data:
-                    self._log(client_ip, path, request.method, len(body), 0, "block", "target_service_not_found")
+                    # self._log(client_ip, path, request.method, len(body), 0, "block", "target_service_not_found")
                     return JsonResponse({
                         "error": "Target service not found",
                         "detail": f"No service found with ID: {target_id}"
@@ -241,7 +243,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                 allowed_service_ids = get_allowed_service_ids(max_services)
 
                 if service_data["id"] not in allowed_service_ids:
-                    self._log(client_ip, path, request.method, len(body), 0, "block", "service_not_in_allowed_limit")
+                    # self._log(client_ip, path, request.method, len(body), 0, "block", "service_not_in_allowed_limit")
                     return JsonResponse({
                         "error": "Service access denied",
                         "detail": f"Service {target_id} is not within the allowed service limit (MAX_SERVICES: {max_services})"
@@ -252,14 +254,14 @@ class DecisionProxyMiddleware(MiddlewareMixin):
 
             except ValueError as e:
                 logger.error(f"Invalid MAX_SERVICES value: {e}")
-                self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_max_services_config")
+                # self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_max_services_config")
                 return JsonResponse({
                     "error": "Configuration error",
                     "detail": "Invalid MAX_SERVICES configuration"
                 }, status=500)
             except Exception as e:
                 logger.error(f"Error looking up service {target_id}: {e}")
-                self._log(client_ip, path, request.method, len(body), 0, "block", "service_lookup_error")
+                # self._log(client_ip, path, request.method, len(body), 0, "block", "service_lookup_error")
                 return JsonResponse({
                     "error": "Service lookup error",
                     "detail": "Unable to determine target service"
@@ -267,14 +269,14 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             
         except ValueError as e:
             logger.error(f"Invalid MAX_SERVICES value: {e}")
-            self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_max_services_config")
+            # self._log(client_ip, path, request.method, len(body), 0, "block", "invalid_max_services_config")
             return JsonResponse({
                 "error": "Configuration error", 
                 "detail": "Invalid MAX_SERVICES configuration"
             }, status=500)
         except Exception as e:
             logger.error(f"Error looking up service {target_id}: {e}")
-            self._log(client_ip, path, request.method, len(body), 0, "block", "service_lookup_error")
+            # self._log(client_ip, path, request.method, len(body), 0, "block", "service_lookup_error")
             return JsonResponse({
                 "error": "Service lookup error", 
                 "detail": "Unable to determine target service"
@@ -284,6 +286,14 @@ class DecisionProxyMiddleware(MiddlewareMixin):
         # allow_ips = getattr(settings, "ALLOW_IPS", [])
         # if client_ip in allow_ips:
         #     return None  #
+        
+        if MODULES["block"]:
+            try:
+                if MODULES["block"].is_blocked(client_ip):
+                    self._log(client_ip, path, request.method, len(body), 0, "block", "already_blocked")
+                    return JsonResponse({"error": "Blocked by blocklist"}, status=403)
+            except Exception:
+                pass
 
         def build_cache_key() -> str:
             # Use method, path (includes query), selected headers, and body hash
@@ -314,11 +324,10 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                     status_code, hdrs, content = pickle.loads(cached)
                     response = HttpResponse(content, status=status_code)
                     for k, v in hdrs.items():
-                        if k.lower() not in ("content-encoding", "transfer-encoding", "connection"):
+                        if k.lower() not in ("content-encoding", "transfer-encoding", "connection", "keep-alive"):
                             response[k] = v
                     response["X-Cache-Status"] = "hit"
                     response["X-Target-Service"] = str(service_data["uuid"])
-                    self._log(client_ip, path, request.method, len(body), score, decision, reason)
                     return response
                 except Exception as e:
                     logger.warning("Redis cache deserialize failed: %s", e)
@@ -328,20 +337,32 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             
             try:
                 url = f"{target_backend}{path}"
-                headers = dict(request.headers)
+                headers = {
+                    k: v for k, v in request.headers.items()
+                    if k.lower() not in (
+                        "host", "x-target-id", "connection", "keep-alive",
+                        "proxy-authenticate", "proxy-authorization",
+                        "te", "trailers", "transfer-encoding", "upgrade",
+                        "content-length"  # jangan pernah forward content-length manual
+                    )
+                }
+                
+                # Hapus Content-Type kalau GET/HEAD
+                if request.method in ("GET", "HEAD"):
+                    headers.pop("Content-Type", None)
                 headers.pop("Host", None)
 
                 resp = requests.request(
                     method=request.method,
                     url=url,
                     headers=headers,
-                    data=body,
+                    data=body if request.method not in ("GET", "HEAD") else None,
                     timeout=10,
                 )
 
                 response = HttpResponse(resp.content, status=resp.status_code)
                 for k, v in resp.headers.items():
-                    if k.lower() not in ("content-encoding", "transfer-encoding", "connection"):
+                    if k.lower() not in ("content-encoding", "transfer-encoding", "connection", "keep-alive"):
                         response[k] = v
                 response["X-Target-Service"] = str(service_data["uuid"])
                 return response
@@ -392,6 +413,8 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             try:
                 asn_cache_key = f"ritapi:asn:{client_ip}"
                 asn_obj = None
+
+                # 🔹 Cek cache dulu
                 if redis_client:
                     try:
                         cached_asn = redis_client.get(asn_cache_key)
@@ -399,6 +422,8 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                             asn_obj = json.loads(cached_asn)
                     except Exception:
                         pass
+
+                # 🔹 Kalau belum ada di cache → lookup ASN
                 if not asn_obj:
                     asn_obj = MODULES["lookup_asn"](client_ip)
                     if asn_obj and redis_client:
@@ -407,7 +432,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                                 "ip_address": getattr(asn_obj, "ip_address", None),
                                 "asn_number": getattr(asn_obj, "asn_number", None),
                                 "asn_description": getattr(asn_obj, "asn_description", None),
-                                "trust_score": getattr(asn_obj, "trust_score", 0),
+                                # trust_score tidak dipakai untuk cache (biar selalu fresh dari DB)
                                 "is_latest": getattr(asn_obj, "is_latest", False),
                                 "created_at": getattr(asn_obj, "created_at", None).isoformat() if getattr(asn_obj, "created_at", None) else None,
                             }
@@ -415,9 +440,21 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                         except Exception as e:
                             logger.error(f"Error caching ASN : {e}")
                             print("ASN cache failed:", e)
-                # support both model instance and dict
+
+                # 🔹 Ambil score langsung dari AsnTrustConfig
                 if asn_obj:
-                    asn_trust = getattr(asn_obj, "trust_score", 0) if hasattr(asn_obj, "trust_score") else asn_obj.get("trust_score", 0)
+                    asn_number = getattr(asn_obj, "asn_number", None) or asn_obj.get("asn_number")
+                    if asn_number:
+                        try:
+                            from asn_score.models import AsnTrustConfig
+                            config = AsnTrustConfig.objects.get(asn_number=asn_number)
+                            asn_trust = config.score
+                        except AsnTrustConfig.DoesNotExist:
+                            asn_trust = 0
+                    else:
+                        asn_trust = 0
+
+
                 # 🚨 Alert jika ASN trust score < -2
                 if asn_trust < -2 and MODULES["alert"]:
                     MODULES["alert"].create_alert(
@@ -426,13 +463,15 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                         detail=f"ASN trust score low ({asn_trust}) for IP {client_ip}",
                         severity="medium"
                     )
-                if MODULES["block"]:
-                    MODULES["block"].soft_block_ip(
-                        ip_address=client_ip,
-                        reason=f"ASN suspicious (score {asn_trust})",
-                        severity="medium"
-                    )
-            except Exception:
+                    if MODULES["block"]:
+                        MODULES["block"].soft_block_ip(
+                            ip_address=client_ip,
+                            reason=f"ASN suspicious (score {asn_trust})",
+                            severity="medium"
+                        )
+
+            except Exception as e:
+                logger.error(f"ASN lookup error: {e}")
                 asn_trust = 0
 
         # === 3) IP reputation
@@ -443,7 +482,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                 iprep_score = getattr(rep, "reputation_score", 0) if hasattr(rep, "reputation_score") else rep.get("reputation_score", rep.get("score", 0))
             except Exception:
                 iprep_score = 0
-
+                
         # === 4) JSON validation (only for JSON-ish requests)
         json_valid = True
         if MODULES["json_validate"]:
@@ -480,25 +519,47 @@ class DecisionProxyMiddleware(MiddlewareMixin):
 
 
 
-        # === 5) Behaviour logging + anomaly
+        # === 5) Behaviour logging + anomaly (improved)
         anomalous = False
-        if MODULES["log_req"]:
+        log_obj = None
+
+        # 1) Log request via AiProfilerService.log_request (expected to return the created BehaviourLogs instance)
+        if MODULES.get("log_req"):
             try:
-                MODULES["log_req"](
-                    ip_address=client_ip,
+                # call using kwargs; service supports both ip or ip_address via kwargs
+                log_obj = MODULES["log_req"](
                     endpoint=path,
+                    ip=None,  # prefer ip_address kw
+                    ip_address=client_ip,
                     method=request.method,
                     payload_size=len(body),
                     user_agent=request.headers.get("User-Agent", ""),
-                    status_code=0,  # unknown yet
-                    response_time_ms=0.0,  # unknown yet
+                    status_code=0,
+                    response_time_ms=0.0,
                 )
-            except Exception:
-                pass
-        if MODULES["is_anom"]:
+            except Exception as e:
+                logger.debug("log_req failed: %s", e)
+                log_obj = None
+
+        # 2) Detect anomaly. AiProfilerService.detect_anomaly expects a BehaviourLogs object.
+        if MODULES.get("is_anom"):
             try:
-                anomalous = bool(MODULES["is_anom"](client_ip))
-            except Exception:
+                # If the detector expects a log object, pass it. If it expects ip, try that as a fallback.
+                try:
+                    if log_obj is not None:
+                        # preferred: pass the created log object
+                        anomalous = bool(MODULES["is_anom"](log_obj))
+                    else:
+                        # fallback: pass ip (some implementations may accept ip)
+                        anomalous = bool(MODULES["is_anom"](client_ip))
+                except TypeError:
+                    # signature mismatch: try calling with ip_address kw
+                    try:
+                        anomalous = bool(MODULES["is_anom"](ip_address=client_ip))
+                    except Exception:
+                        anomalous = False
+            except Exception as e:
+                logger.debug("is_anom failed: %s", e)
                 anomalous = False
 
         # === 6) Blocklist check
@@ -517,7 +578,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
             score -= 1
         if anomalous:
             score -= 4
-
+            
         # Default decision
         decision, reason = "allow", "ok"
 
@@ -546,21 +607,32 @@ class DecisionProxyMiddleware(MiddlewareMixin):
 
         # === Forward to backend (with Redis caching)
         try:
-            headers = dict(request.headers)
+            headers = {
+                k: v for k, v in request.headers.items()
+                if k.lower() not in (
+                    "host", "x-target-id", "connection", "keep-alive",
+                    "proxy-authenticate", "proxy-authorization",
+                    "te", "trailers", "transfer-encoding", "upgrade",
+                    "content-length"  # jangan pernah forward content-length manual
+                )
+            }
+            
+            # Hapus Content-Type kalau GET/HEAD
+            if request.method in ("GET", "HEAD"):
+                headers.pop("Content-Type", None)
             headers.pop("Host", None)
-
+            
             resp = requests.request(
                 method=request.method,
                 url=f"{target_backend}{path}",
                 headers=headers,
-                data=body,
+                data=body if request.method not in ("GET", "HEAD") else None,
                 timeout=10,
             )
-
             response = HttpResponse(resp.content, status=resp.status_code)
             forwarded_headers = {}
             for k, v in resp.headers.items():
-                if k.lower() not in ("content-encoding", "transfer-encoding", "connection"):
+                if k.lower() not in ("content-encoding", "transfer-encoding", "connection", "keep-alive"):
                     response[k] = v
                     forwarded_headers[k] = v
 
@@ -585,7 +657,7 @@ class DecisionProxyMiddleware(MiddlewareMixin):
                 elif resp.status_code != 200:
                     response["X-Cache-Status"] = "skipped_status"
 
-            self._log(client_ip, path, request.method, len(body), score, decision, reason)
+            self._log(client_ip, path, request.method, len(body), 0, decision, reason)
             return response
 
         except Exception as e:

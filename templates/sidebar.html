@@ -81,6 +81,14 @@
                 </a>
             </li>
 
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'service_dashboard' %}active{% endif %}" 
+                href="{% url 'requestlog_list' %}">
+                    <i class="fas fa-list"></i>
+                    <span class="sidebar-text">Logs</span>
+                </a>
+            </li>
+
             {% comment %} <li class="nav-item mt-3">
                 <a class="nav-link" href="/admin/">
                     <i class="fas fa-cog"></i>

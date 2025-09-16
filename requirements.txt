@@ -41,3 +41,6 @@ django-secure>=1.0.2
 # Task queue (optional, for Celery/Redis if used)
 redis>=5.0.0
 celery>=5.3.1
+
+# excel
+openpyxl>=3.1.0
